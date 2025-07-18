@@ -21,7 +21,7 @@ app.use(
 
 // Health check/test API
 app.get("/test", (req: Request, res: Response) => {
-  res.status(200).json({
+  res.status(200).json({ 
     success: true,
     message: "API is working",
   });
