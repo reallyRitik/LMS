@@ -1,4 +1,4 @@
-import e from "express";
+import express from "express";
 import mongoose from "mongoose";
 require("dotenv").config();
 
