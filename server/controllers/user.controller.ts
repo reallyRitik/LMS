@@ -1,6 +1,7 @@
 require("dotenv").config();
 import { Request, Response, NextFunction } from "express";
 import userModel from "../models/user.model";
+import { IUser } from "../models/user.model";
 import ErrorHandler from "../utils/ErrorHandler";
 import catchAsyncErrors from "../middleware/catchAsyncErrors";
 import Jwt, { Secret } from "jsonwebtoken";
@@ -83,7 +84,55 @@ const createActivationToken = (user: IRegistrationBody): IActivationToken => {
   const token = Jwt.sign(
     { user, activationCode },
     process.env.ACTIVATION_SECRET as Secret,
-    { expiresIn: "1d" }
+    { expiresIn: "5m" }
   );
   return { token, activationCode };
 };
+
+//Activate user account
+
+interface IActivationRequest {
+  activation_token: string;
+  activation_code: string;
+}
+
+export const activateUser = catchAsyncErrors(
+  async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const { activation_token, activation_code } = req.body as IActivationRequest;
+      if (!activation_token || !activation_code) {
+        return res.status(400).json({ success: false, message: "Activation token and code are required" });
+      }
+      let newUser;
+      try {
+        newUser = Jwt.verify(
+          activation_token,
+          process.env.ACTIVATION_SECRET as string
+        ) as { user: IRegistrationBody; activationCode: string };
+      } catch (err) {
+        return res.status(400).json({ success: false, message: "Invalid or expired activation token" });
+      }
+      if (newUser.activationCode !== activation_code) {
+        return res.status(400).json({ success: false, message: "Invalid activation code" });
+      }
+      const { name, email, password, avatar } = newUser.user;
+      const existUser = await userModel.findOne({ email });
+      if (existUser) {
+        return res.status(400).json({ success: false, message: "User already exists" });
+      }
+      const user = await userModel.create({
+        name,
+        email,
+        password,
+        avatar,
+      });
+      res.status(201).json({
+        success: true,
+        message: "User activated successfully",
+        user,
+      });
+    } catch (error) {
+      return res.status(500).json({ success: false, message: "Error activating user" });
+    }
+  }
+);
