@@ -1,5 +1,5 @@
 require("dotenv").config();
-import { Request, Response, NextFunction } from "express";
+import e, { Request, Response, NextFunction } from "express";
 import userModel from "../models/user.model";
 import { IUser } from "../models/user.model";
 import ErrorHandler from "../utils/ErrorHandler";
@@ -134,5 +134,39 @@ export const activateUser = catchAsyncErrors(
     } catch (error) {
       return res.status(500).json({ success: false, message: "Error activating user" });
     }
+  }
+);
+
+// Login user
+
+interface ILoginRequest {
+  email: string;
+  password: string;
+}
+
+export const loginUser = catchAsyncErrors(
+  async (req: Request, res: Response, next: NextFunction) => {
+    const { email, password } = req.body as ILoginRequest;
+    if (!email || !password) {
+      return next(new ErrorHandler("Please enter email and password", 400));
+    }
+
+    const user = await userModel.findOne({ email }).select("+password");
+    if (!user) {
+      return next(new ErrorHandler("Invalid email or password", 401));
+    }
+
+    const isPasswordMatched = await user.comparePassword(password);
+    if (!isPasswordMatched) {
+      return next(new ErrorHandler("Invalid email or password", 401));
+    }
+
+    const accessToken = user.SignAccessToken();
+    res.status(200).json({
+      success: true,
+      message: "Login successful",
+      accessToken,
+      user,
+    });
   }
 );
