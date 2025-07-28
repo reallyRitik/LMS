@@ -3,6 +3,7 @@ import express, { NextFunction, Request, Response } from "express";
 import cors from "cors";
 import cookieParser from "cookie-parser";
 import {errorMiddleware} from "./middleware/error";
+import userRouter from "./routes/user.route";
 
 export const app = express();
 
@@ -19,6 +20,10 @@ app.use(
     credentials: true,
   })
 );
+
+// Routes
+
+app.use("/api/v1", userRouter);
 
 // Health check/test API
 app.get("/test", (req: Request, res: Response) => {

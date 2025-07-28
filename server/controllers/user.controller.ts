@@ -6,6 +6,7 @@ import catchAsyncErrors from "../middleware/catchAsyncErrors";
 import Jwt, { Secret } from "jsonwebtoken";
 import ejs from "ejs";
 import path from "path";
+import sendMail from "../utils/sendMail";
 
 // Register user
 interface IRegistrationBody {
@@ -18,36 +19,58 @@ interface IRegistrationBody {
   };
 }
 
-export const registerUser = catchAsyncErrors(async (req: Request, res: Response, next: NextFunction) => {
-  try {
-    const { name, email, password, avatar } = req.body;
-    const isEmailExist = await userModel.findOne({ email });
-    if (isEmailExist) {
-      return next(new ErrorHandler("Email already exists", 400));
+export const registerUser = catchAsyncErrors(
+  async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const { name, email, password, avatar } = req.body;
+      const isEmailExist = await userModel.findOne({ email });
+      if (isEmailExist) {
+        return next(new ErrorHandler("Email already exists", 400));
+      }
+
+      const user: IRegistrationBody = {
+        name,
+        email,
+        password,
+        avatar,
+      };
+
+      const activationToken = createActivationToken(user);
+
+      const activationCode = activationToken.activationCode;
+      const data = { user: { name: user.name }, activationCode };
+      const html = await ejs.renderFile(
+        path.join(__dirname, "../mails/activation-mail.ejs"),
+        data
+      );
+
+      try {
+        await sendMail({
+          email: user.email,
+          subject: "Account Activation",
+          template: "activation-mail.ejs",
+          data,
+        });
+        res.status(201).json({
+          success: true,
+          message: `Please check your email : $(user.email) for activation link`,
+          activationToken: activationToken.token,
+        });
+      } catch (error) {
+        return next(new ErrorHandler("Error sending activation email", 500));
+      }
+
+      // You can send activationToken to user's email here
+      res.status(201).json({
+        success: true,
+        message: "User registered successfully. Activation token sent.",
+        activationToken,
+      });
+    } catch (error) {
+      return next(new ErrorHandler("Error registering user", 500));
     }
-
-    const user: IRegistrationBody = {
-      name,
-      email,
-      password,
-      avatar,
-    };
-
-    const activationToken = createActivationToken(user);
-
-    const activationCode = activationToken.activationCode;
-    const data = {user: {name:user.name}, activationCode};
-    const html = await ejs.renderFile(path.join(__dirname, "../views/activationEmail.ejs"), data);
-    // You can send activationToken to user's email here
-    res.status(201).json({
-      success: true,
-      message: "User registered successfully. Activation token sent.",
-      activationToken,
-    });
-  } catch (error) {
-    return next(new ErrorHandler("Error registering user", 500));
   }
-});
+);
 
 interface IActivationToken {
   token: string;
