@@ -6,6 +6,7 @@ import jwt from "jsonwebtoken";
 const emailRegexPattern: RegExp = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 export interface IUser extends Document {
+  _id: any; // Add this line to fix the error on user._id
   name: string;
   email: string;
   password: string;
@@ -19,8 +20,8 @@ export interface IUser extends Document {
   comparePassword(enteredPassword: string): Promise<boolean>;
   createdAt?: Date;
   updatedAt?: Date;
-  SignAccessToken: ()=>string;
-  SignRefreshToken: ()=>string;
+  SignAccessToken: () => string;
+  SignRefreshToken: () => string;
 }
 
 const userSchema: Schema<IUser> = new Schema(
@@ -80,15 +81,13 @@ userSchema.pre<IUser>("save", async function (next) {
 
 //sign access token
 userSchema.methods.SignAccessToken = function (): string {
-  return jwt.sign(
-    { id: this._id}, process.env.ACCESS_TOKEN || '');
+  return jwt.sign({ id: this._id }, process.env.ACCESS_TOKEN || "");
 };
 
 //sign refresh token
 
 userSchema.methods.SignRefreshToken = function (): string {
-  return jwt.sign(
-    { id: this._id }, process.env.REFRESH_TOKEN || '');
+  return jwt.sign({ id: this._id }, process.env.REFRESH_TOKEN || "");
 };
 
 userSchema.methods.comparePassword = async function (

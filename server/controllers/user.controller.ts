@@ -8,6 +8,8 @@ import Jwt, { Secret } from "jsonwebtoken";
 import ejs from "ejs";
 import path from "path";
 import sendMail from "../utils/sendMail";
+import { sendToken } from "../utils/jwt";
+import { access } from "fs";
 
 // Register user
 interface IRegistrationBody {
@@ -99,9 +101,15 @@ interface IActivationRequest {
 export const activateUser = catchAsyncErrors(
   async (req: Request, res: Response, next: NextFunction) => {
     try {
-      const { activation_token, activation_code } = req.body as IActivationRequest;
+      const { activation_token, activation_code } =
+        req.body as IActivationRequest;
       if (!activation_token || !activation_code) {
-        return res.status(400).json({ success: false, message: "Activation token and code are required" });
+        return res
+          .status(400)
+          .json({
+            success: false,
+            message: "Activation token and code are required",
+          });
       }
       let newUser;
       try {
@@ -110,15 +118,24 @@ export const activateUser = catchAsyncErrors(
           process.env.ACTIVATION_SECRET as string
         ) as { user: IRegistrationBody; activationCode: string };
       } catch (err) {
-        return res.status(400).json({ success: false, message: "Invalid or expired activation token" });
+        return res
+          .status(400)
+          .json({
+            success: false,
+            message: "Invalid or expired activation token",
+          });
       }
       if (newUser.activationCode !== activation_code) {
-        return res.status(400).json({ success: false, message: "Invalid activation code" });
+        return res
+          .status(400)
+          .json({ success: false, message: "Invalid activation code" });
       }
       const { name, email, password, avatar } = newUser.user;
       const existUser = await userModel.findOne({ email });
       if (existUser) {
-        return res.status(400).json({ success: false, message: "User already exists" });
+        return res
+          .status(400)
+          .json({ success: false, message: "User already exists" });
       }
       const user = await userModel.create({
         name,
@@ -132,7 +149,9 @@ export const activateUser = catchAsyncErrors(
         user,
       });
     } catch (error) {
-      return res.status(500).json({ success: false, message: "Error activating user" });
+      return res
+        .status(500)
+        .json({ success: false, message: "Error activating user" });
     }
   }
 );
@@ -146,27 +165,44 @@ interface ILoginRequest {
 
 export const loginUser = catchAsyncErrors(
   async (req: Request, res: Response, next: NextFunction) => {
-    const { email, password } = req.body as ILoginRequest;
-    if (!email || !password) {
-      return next(new ErrorHandler("Please enter email and password", 400));
-    }
+    try {
+      const { email, password } = req.body as ILoginRequest;
+      if (!email || !password) {
+        return next(new ErrorHandler("Please enter email and password", 400));
+      }
 
-    const user = await userModel.findOne({ email }).select("+password");
-    if (!user) {
-      return next(new ErrorHandler("Invalid email or password", 401));
-    }
+      const user = await userModel.findOne({ email }).select("+password");
+      if (!user) {
+        return next(new ErrorHandler("Invalid email or password", 401));
+      }
 
-    const isPasswordMatched = await user.comparePassword(password);
-    if (!isPasswordMatched) {
-      return next(new ErrorHandler("Invalid email or password", 401));
-    }
+      const isPasswordMatched = await user.comparePassword(password);
+      if (!isPasswordMatched) {
+        return next(new ErrorHandler("Invalid email or password", 401));
+      }
 
-    const accessToken = user.SignAccessToken();
-    res.status(200).json({
-      success: true,
-      message: "Login successful",
-      accessToken,
-      user,
-    });
+      sendToken(user, 200, res);
+    } catch (error: any) {
+      return next(new ErrorHandler(error.message, 400));
+    }
   }
 );
+
+
+//logOut user
+
+export const logoutUser = catchAsyncErrors(async(req:Request, res:Response, next: NextFunction)=>{
+
+  try{
+res.cookie("access_token", "", {maxAge:1});
+res.cookie("refresh_token", "", {maxAge:1});
+
+res.status(200).json({
+  success: true,
+  message: "Logged Out Successfully"
+})
+  }
+  catch (error:any){
+return next(new ErrorHandler(error.message, 400));
+  }
+})
