@@ -36,3 +36,21 @@ export const isAuthenticated = catchAsyncError(
     next();
   }
 );
+
+/**
+ * Middleware to check if the user is an admin.
+ * It checks the user's role from the request object.
+ */
+
+export const authrizeRoles = (...roles: string[]) =>
+{
+    return (req: Request, res: Response, next: NextFunction) => {
+        if (!roles.includes(req.user?.role || "")) {
+            return next(
+                new ErrorHandler(`Role: ${req.user?.role || ""} is not allowed to access this resource`, 403)
+            );
+        }
+        next();
+    }
+}
+ 
