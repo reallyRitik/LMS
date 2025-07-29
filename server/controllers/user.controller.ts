@@ -1,5 +1,5 @@
 require("dotenv").config();
-import e, { Request, Response, NextFunction } from "express";
+import { Request, Response, NextFunction } from "express";
 import userModel from "../models/user.model";
 import { IUser } from "../models/user.model";
 import ErrorHandler from "../utils/ErrorHandler";
@@ -8,7 +8,11 @@ import Jwt, { JwtPayload, Secret } from "jsonwebtoken";
 import ejs from "ejs";
 import path from "path";
 import sendMail from "../utils/sendMail";
-import { accessTokenOptions, refreshTokenOptions, sendToken } from "../utils/jwt";
+import {
+  accessTokenOptions,
+  refreshTokenOptions,
+  sendToken,
+} from "../utils/jwt";
 import { access } from "fs";
 import { redis } from "../utils/redis";
 import { getUserById } from "../services/user.service";
@@ -244,7 +248,6 @@ export const updateAccessToken = catchAsyncErrors(
         status: "success",
         accessToken,
       });
-
     } catch (error: any) {
       return next(new ErrorHandler(error.message, 400));
     }
@@ -255,14 +258,53 @@ export const updateAccessToken = catchAsyncErrors(
 
 export const getUserInfo = catchAsyncErrors(
   async (req: Request, res: Response, next: NextFunction) => {
-
-    try{
+    try {
       const userId = req.user?._id;
-        getUserById(userId, res);
-    }
-    catch (error: any) {
+      getUserById(userId, res);
+    } catch (error: any) {
       return next(new ErrorHandler(error.message, 400));
     }
-  });
+  }
+);
 
-  
+interface ISocialAuthBody {
+  email: string;
+  name: string;
+  avatar: string;
+}
+
+//Social authentication
+
+export const socialAuth = catchAsyncErrors(
+  async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      if (!req.body || typeof req.body !== "object") {
+        return res.status(400).json({
+          success: false,
+          message: "Request body must be a valid JSON object.",
+        });
+      }
+      const { email, name, avatar } = req.body;
+      if (!email || !name) {
+        return res.status(400).json({
+          success: false,
+          message: "Missing required fields: email, name",
+        });
+      }
+      const user = await userModel.findOne({ email });
+
+      if (!user) {
+        const newUser = await userModel.create({
+          name,
+          email,
+          avatar,
+        });
+        sendToken(newUser, 201, res);
+      } else {
+        sendToken(user, 200, res);
+      }
+    } catch (error: any) {
+      return next(new ErrorHandler(error.message, 400));
+    }
+  }
+);
