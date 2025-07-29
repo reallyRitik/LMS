@@ -10,6 +10,7 @@ import path from "path";
 import sendMail from "../utils/sendMail";
 import { sendToken } from "../utils/jwt";
 import { access } from "fs";
+import { redis } from "../utils/redis";
 
 // Register user
 interface IRegistrationBody {
@@ -39,7 +40,6 @@ export const registerUser = catchAsyncErrors(
       };
 
       const activationToken = createActivationToken(user);
-
       const activationCode = activationToken.activationCode;
       const data = { user: { name: user.name }, activationCode };
       const html = await ejs.renderFile(
@@ -56,19 +56,12 @@ export const registerUser = catchAsyncErrors(
         });
         res.status(201).json({
           success: true,
-          message: `Please check your email : $(user.email) for activation link`,
+          message: `Please check your email : ${user.email} for activation link`,
           activationToken: activationToken.token,
         });
       } catch (error) {
         return next(new ErrorHandler("Error sending activation email", 500));
       }
-
-      // You can send activationToken to user's email here
-      res.status(201).json({
-        success: true,
-        message: "User registered successfully. Activation token sent.",
-        activationToken,
-      });
     } catch (error) {
       return next(new ErrorHandler("Error registering user", 500));
     }
@@ -192,17 +185,26 @@ export const loginUser = catchAsyncErrors(
 //logOut user
 
 export const logoutUser = catchAsyncErrors(async(req:Request, res:Response, next: NextFunction)=>{
-
   try{
-res.cookie("access_token", "", {maxAge:1});
-res.cookie("refresh_token", "", {maxAge:1});
+    const cookieOptions = {
+      maxAge: 1,
+      httpOnly: true,
+      sameSite: "lax" as const,
+      secure: process.env.NODE_ENV === "production",
+      path: "/",
+      domain: "localhost" // Change to your actual domain in production
+    };
+    res.cookie("access_token", "", cookieOptions);
+    res.cookie("refresh_token", "", cookieOptions);
+    // Remove user session from Redis
+    const userId = req.user?._id || "";
+    redis.del(userId);
 
-res.status(200).json({
-  success: true,
-  message: "Logged Out Successfully"
-})
+    res.status(200).json({
+      success: true,
+      message: "Logged Out Successfully"
+    });
+  } catch (error:any){
+    return next(new ErrorHandler(error.message, 400));
   }
-  catch (error:any){
-return next(new ErrorHandler(error.message, 400));
-  }
-})
+});
