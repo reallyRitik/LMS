@@ -11,15 +11,7 @@ interface ITokenOptions {
   secure: boolean;
 }
 
-export const sendToken = (user: IUser, statusCode: number, res: Response) => {
-  const accessToken = user.SignAccessToken();
-  const refreshToken = user.SignRefreshToken();
-
-  //Upload session to redis
-
-  redis.set(user._id, JSON.stringify(user) as any);
-
-  //parse environment variables to integrates with fallbacks values
+//parse environment variables to integrates with fallbacks values
   const accessTokenExpire = parseInt(
     process.env.ACCESS_TOKEN_EXPIRE || "300",
     10
@@ -31,21 +23,32 @@ export const sendToken = (user: IUser, statusCode: number, res: Response) => {
 
   //options for cookies
 
-  const accessTokenOptions: ITokenOptions = {
-    expires: new Date(Date.now() + accessTokenExpire * 1000),
-    maxAge: accessTokenExpire * 1000,
+  export const accessTokenOptions: ITokenOptions = {
+    expires: new Date(Date.now() + accessTokenExpire * 60 * 60 * 1000),
+    maxAge: accessTokenExpire * 60 * 60 * 1000,
     httpOnly: true,
     sameSite: "lax",
     secure: process.env.NODE_ENV === "production",
   };
-  const refreshTokenOptions: ITokenOptions = {
-    expires: new Date(Date.now() + refreshTokenExpire * 1000),
-    maxAge: refreshTokenExpire * 1000,
+ export const refreshTokenOptions: ITokenOptions = {
+    expires: new Date(Date.now() + refreshTokenExpire * 24 * 60 * 60 * 1000),
+    maxAge: refreshTokenExpire * 24 * 60 * 60 * 1000,
     httpOnly: true,
     sameSite: "lax",
     secure: process.env.NODE_ENV === "production",
   };
 
+
+
+export const sendToken = (user: IUser, statusCode: number, res: Response) => {
+  const accessToken = user.SignAccessToken();
+  const refreshToken = user.SignRefreshToken();
+
+  //Upload session to redis
+
+  redis.set(user._id, JSON.stringify(user) as any);
+
+  
   res.cookie("access_token", accessToken, accessTokenOptions);
   res.cookie("refresh_token", refreshToken, refreshTokenOptions);
 

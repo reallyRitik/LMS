@@ -4,11 +4,11 @@ import userModel from "../models/user.model";
 import { IUser } from "../models/user.model";
 import ErrorHandler from "../utils/ErrorHandler";
 import catchAsyncErrors from "../middleware/catchAsyncErrors";
-import Jwt, { Secret } from "jsonwebtoken";
+import Jwt, { JwtPayload, Secret } from "jsonwebtoken";
 import ejs from "ejs";
 import path from "path";
 import sendMail from "../utils/sendMail";
-import { sendToken } from "../utils/jwt";
+import { accessTokenOptions, refreshTokenOptions, sendToken } from "../utils/jwt";
 import { access } from "fs";
 import { redis } from "../utils/redis";
 
@@ -97,12 +97,10 @@ export const activateUser = catchAsyncErrors(
       const { activation_token, activation_code } =
         req.body as IActivationRequest;
       if (!activation_token || !activation_code) {
-        return res
-          .status(400)
-          .json({
-            success: false,
-            message: "Activation token and code are required",
-          });
+        return res.status(400).json({
+          success: false,
+          message: "Activation token and code are required",
+        });
       }
       let newUser;
       try {
@@ -111,12 +109,10 @@ export const activateUser = catchAsyncErrors(
           process.env.ACTIVATION_SECRET as string
         ) as { user: IRegistrationBody; activationCode: string };
       } catch (err) {
-        return res
-          .status(400)
-          .json({
-            success: false,
-            message: "Invalid or expired activation token",
-          });
+        return res.status(400).json({
+          success: false,
+          message: "Invalid or expired activation token",
+        });
       }
       if (newUser.activationCode !== activation_code) {
         return res
@@ -181,30 +177,75 @@ export const loginUser = catchAsyncErrors(
   }
 );
 
-
 //logOut user
 
-export const logoutUser = catchAsyncErrors(async(req:Request, res:Response, next: NextFunction)=>{
-  try{
-    const cookieOptions = {
-      maxAge: 1,
-      httpOnly: true,
-      sameSite: "lax" as const,
-      secure: process.env.NODE_ENV === "production",
-      path: "/",
-      domain: "localhost" // Change to your actual domain in production
-    };
-    res.cookie("access_token", "", cookieOptions);
-    res.cookie("refresh_token", "", cookieOptions);
-    // Remove user session from Redis
-    const userId = req.user?._id || "";
-    redis.del(userId);
+export const logoutUser = catchAsyncErrors(
+  async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const cookieOptions = {
+        maxAge: 1,
+        httpOnly: true,
+        sameSite: "lax" as const,
+        secure: process.env.NODE_ENV === "production",
+        path: "/",
+        domain: "localhost", // Change to your actual domain in production
+      };
+      res.cookie("access_token", "", cookieOptions);
+      res.cookie("refresh_token", "", cookieOptions);
+      // Remove user session from Redis
+      const userId = req.user?._id || "";
+      redis.del(userId);
 
-    res.status(200).json({
-      success: true,
-      message: "Logged Out Successfully"
-    });
-  } catch (error:any){
-    return next(new ErrorHandler(error.message, 400));
+      res.status(200).json({
+        success: true,
+        message: "Logged Out Successfully",
+      });
+    } catch (error: any) {
+      return next(new ErrorHandler(error.message, 400));
+    }
   }
-});
+);
+
+//Update Our Access Token
+
+export const updateAccessToken = catchAsyncErrors(
+  async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const refresh_token = req.cookies.refresh_token as string;
+      const decoded = Jwt.verify(
+        refresh_token,
+        process.env.REFRESH_TOKEN as string
+      ) as JwtPayload;
+
+      const message = "could not refresh access token";
+      if (!decoded) {
+        return next(new ErrorHandler(message, 401));
+      }
+      const session = await redis.get(decoded.id as string);
+      if (!session) {
+        return next(new ErrorHandler(message, 404));
+      }
+
+      const user = JSON.parse(session);
+      const accessToken = Jwt.sign(
+        { id: user._id },
+        process.env.ACCESS_TOKEN as string,
+        { expiresIn: "5m" }
+      );
+      const refreshToken = Jwt.sign(
+        { id: user._id },
+        process.env.REFRESH_TOKEN as string,
+        { expiresIn: "3d" }
+      );
+      res.cookie("access_token", accessToken, accessTokenOptions);
+      res.cookie("refresh_token", refreshToken, refreshTokenOptions);
+      res.status(200).json({
+        status: "success",
+        accessToken,
+      });
+
+    } catch (error: any) {
+      return next(new ErrorHandler(error.message, 400));
+    }
+  }
+);
