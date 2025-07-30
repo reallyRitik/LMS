@@ -1,4 +1,4 @@
-import e, { Response } from "express";
+import { Response } from "express";
 import { redis } from "../utils/redis";
 
 //get user by id

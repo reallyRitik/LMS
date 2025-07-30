@@ -4,6 +4,7 @@ import cors from "cors";
 import cookieParser from "cookie-parser";
 import {errorMiddleware} from "./middleware/error";
 import userRouter from "./routes/user.route";
+import courseRouter from "./routes/course.route";
 
 export const app = express();
 
@@ -24,6 +25,7 @@ app.use(
 // Routes
 
 app.use("/api/v1", userRouter);
+app.use("/api/v1", courseRouter);
 
 // Health check/test API
 app.get("/test", (req: Request, res: Response) => {
