@@ -88,3 +88,19 @@ export const getSingleCourse = catchAsyncError(
       return next(new ErrorHandler("Error fetching course", 500));
     }
   });
+
+  //get all courses - without purchasing
+
+  export const getAllCourses = catchAsyncError(
+    async (req: Request, res: Response, next: NextFunction) => {
+        try{
+            const course = await CourseModel.find().select("-courseData.videoUrl -courseData.suggestion -courseData.questions -courseData.links");
+        res.status(200).json({
+            success: true,
+            course,
+        })
+        }
+        catch (error: any) {
+          return next(new ErrorHandler("Error fetching courses", 500));
+        }
+    });
